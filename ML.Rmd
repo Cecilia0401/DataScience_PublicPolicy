@@ -1,0 +1,45 @@
+---
+title: "Macine Learning "
+author: "Cecilia"
+date: "5/11/2020"
+output: html_document
+---
+## Machine Learning 
+
+To predict food stamp recipiency situation according to the ACS data. 
+
+```{r setup, include=FALSE}
+library(haven)
+foodstamp_final <- read_dta("/Users/liangziang/Desktop/Second_Year/Spring/599/week6/foodstamp_final.dta")
+```
+
+
+```{r}
+
+by(data = foodstamp_final$hhincome, INDICES = foodstamp_final$training, FUN = summary)
+stmp = lm(foodstamp ~ hhincome + sex + age + racasian + racblk + racpacis + hcovany + hcovpriv + hcovpub + inctot + married + sep_div + widowed + hispanic + school_0 + school_1 + school_2 + school_3 + school_5 + school_6 + school_7 + employed + pov100 + pov200 + pov300 + pov400 + pov500, data = foodstamp_final)
+
+summary(stmp)
+```
+
+```{r}
+train = foodstamp_final$training == 1
+test = foodstamp_final$training == 0
+
+lm.fit = lm(foodstamp ~ hhincome + sex + age + racasian + racblk + racpacis + hcovany + hcovpriv + hcovpub + inctot + married + sep_div + widowed + hispanic + school_0 + school_1 + school_2 + school_3 + school_5 + school_6 + school_7 + employed + pov100 + pov200 + pov300 + pov400 + pov500, data = foodstamp_final, subset = train)
+ 
+summary(lm.fit)
+```
+
+## Prediction
+
+```{r}
+lm.probs = predict(lm.fit, newdata = foodstamp_final[!train,], type = "response")
+# foodstamp_final[!train,] means test data
+summary(lm.probs)
+# set a rule 
+lm.pred = ifelse(lm.probs > 0.5, 1, 0)
+receive = foodstamp_final$foodstamp[!train]
+table(lm.pred, receive)
+```
+
