@@ -1,0 +1,96 @@
+---
+title: "Clustering"
+author: "Cecilia"
+date: "5/23/2020"
+output: html_document
+---
+
+
+# Clustering
+
+## Spatial clustering
+
+```{r setup, include=FALSE}
+library(readxl)
+library(rworldmap)
+library(tidyverse)
+library(cluster)
+library(factoextra)
+labour <- read_excel("/Users/liangziang/Desktop/Second_Year/Spring/599/week8/labour.xlsx") 
+View(labour) 
+```
+
+```{r}
+world = getMap(resolution = "low")
+plot(world, xlim = c(-180, 180), ylim = c(-90, 90), asp = 1)
+points(labour$longitude, labour$latitude, col = "red", cex = .6)
+points(labour$longitude, labour$latitude, col = "red", cex = 1)
+
+```
+
+```{r}
+long = labour$longitude
+lat = labour$latitude
+coordinate = cbind(long, lat)
+city = labour$city
+rownames(coordinate) = labour$city
+```
+
+
+```{r}
+k5 = kmeans(coordinate, centers = 5)
+k5
+```
+
+
+
+Visualization:
+
+```{r}
+fviz_cluster(k5, data = coordinate)
+```
+
+
+```{r}
+fviz_nbclust(coordinate, kmeans, method = "silhouette")
+k3 = kmeans(coordinate, centers = 3)
+fviz_cluster(k3, data = coordinate)
+```
+
+## Non-spatial clustering
+
+```{r}
+crime <- read_excel("/Users/liangziang/Desktop/Second_Year/Spring/599/week8/crime.xlsx")
+View(crime) 
+```
+
+```{r}
+crime_cluster = crime
+crime_cluster$State = NULL
+rownames(crime_cluster) = crime$State
+```
+
+
+```{r}
+k3 = kmeans(crime_cluster, centers = 3)
+fviz_cluster(k3, data = crime_cluster)
+```
+
+
+```{r}
+crime_cluster_copy = crime
+crime$State = NULL
+rownames(crime_cluster_copy) = crime$State
+crime_cluster_copy$Assault = crime_cluster_copy$Assault/100
+crime_cluster_copy$UrbanPopulation = crime_cluster_copy$UrbanPopulation/100
+k2_copy = kmeans(crime_cluster_copy, centers = 2)
+fviz_cluster(k2_copy, data = crime_cluster_copy)
+```
+
+
+Silhouette:
+
+```{r}
+fviz_nbclust(crime_cluster, kmeans, method = "silhouette")
+```
+
