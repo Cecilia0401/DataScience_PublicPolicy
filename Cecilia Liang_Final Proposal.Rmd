@@ -1,0 +1,381 @@
+---
+title: "599 Final Proposal"
+author: "Cecilia Liang"
+date: "6/8/2020"
+output: html_document
+---
+
+
+# Research Proposal
+
+
+## Research Objectives
+
+This proposal focuses on conducting regression and making predictions about King County's housing price. With the economy's fast development, the flousrishing housing market in King County attracts people's attention. This research proposal focuses on discussing how to predict price of a house, with the dataset of King County. In order to make the result easy to understand, I designed the binary dpendent variable which is __higher price__ and __lower price__. The regression model with different factors of house can be used to predict whether it's price is higher or lower than the median price. 
+
+__Research question:  using individual characteristics (living space, the number of bathrooms and bedrooms, waterfront, etc.) to predict whether the price of the house is lower or higher.__
+
+
+## Background 
+
+In May, 2020, the King county median home price is [$667,264](https://www.zillow.com/king-county-wa/home-values/). The median price reached to a peak in March, 2020, but COVID-19 is having some negative impacts on the price. However, people are still optimistic with the home price in a long run. When people thinking of buying a house, there are many factors need to be taken into consideration. Depends on different variables, it is possible to predict whether the house price is higher or lower than the median price.
+
+
+## Data and Analysis Strategy
+
+In this report, I adopted the data of House Sales in King County, USA from [Kaggle](https://www.kaggle.com/harlfoxem/housesalesprediction). This dataset contains house sale prices for King County, which includes Seattle. It includes homes sold between May 2014 and May 2015. Although it is a five-year-ago data, it is very clean and tidy without any NAs, so to me it is a good dataset to practise regression and prediction.  
+This data set includes 21 variables in total, and they are: id, date, price, bedrooms, bathrooms, sqft_living, sqft_lot, floors, waterfront, view, condition, grade, sqft_above, sqft_basement, yr_built, yr_renovated, zip code, latitude,longitude, sqft_living15, sqft_lot15. The specific introduction is attached.
+
+
+![](https://storage.googleapis.com/kaggle-forum-message-attachments/479761/11440/Screenshot%202019-02-27%20at%205.26.24%20PM.png). 
+
+Many people have used the dataset to make their own predictions, some of them tend to conduct data visualization first, to determine which variables are correlated to the price, and then they will use those variables for further regression and prediction. Here I used the similar method. I picked my interested indicators and generated several charts to see the specific relationships between these independent variables and price, or how will they influence each other. As I mentioned before, I calculated the median home price in this dataset, which is \$450,000 (the home price has increased sharply in the past five years), so I decided to set \$400,000 and \$600,000 as the standards in this research of $lower price$ and $higher price$ respectively. 
+
+Further steps, reasons of my choices, and analysis strategy are discussed with the code together. 
+
+
+```{r setup, include=FALSE}
+library(readr)
+require(caTools)
+library(dplyr)
+library(readxl)
+library(rworldmap)
+library(tidyverse)
+library(factoextra)
+library(lubridate)
+library(rworldmap)
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(ggplot2)
+library(caret)
+library(rpart)
+library(haven)
+library(rpart.plot)
+library(ggmap)
+```
+
+
+* Cleaning the data.
+
+```{r get data, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+kc_housing <- read_csv(file = "https://github.com/Cecilia0401/MyData/raw/master/kc_house_data.csv")
+
+kc_housing <- kc_housing %>% 
+  mutate ("b1" = ifelse(zipcode ==98004, 1, 0),
+          "b2" = ifelse(zipcode ==98005, 1, 0),
+          "b3" = ifelse(zipcode ==98006, 1, 0),
+          "b4" = ifelse(zipcode ==98007, 1, 0),
+          "b5" = ifelse(zipcode ==98008, 1, 0),
+          ) 
+
+```
+
+
+* Setting the standards.
+
+```{r set baseline, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+median(kc_housing$price)
+kc_housing_price <- subset(kc_housing, price < 400000 | price >600000)
+kc_housing_price <- kc_housing_price %>% mutate(price_b = ifelse(price >=600000, 1, 0))
+
+```
+
+
+* Deviding the dataset into train dataset and test dataset.
+
+```{r train & test, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+# https://rpubs.com/ID_Tech/S1
+smp_siz = floor(0.8*nrow(kc_housing_price)) 
+smp_siz
+set.seed(123)   # set seed to ensure you always have same random numbers generated
+train_ind = sample(seq_len(nrow(kc_housing_price)),size = smp_siz)  # Randomly identifies therows equal to sample size ( defined in previous instruction) from  all the rows of Smarket dataset and stores the row number in train_ind
+kc_train =kc_housing_price[train_ind,] #creates the training dataset with row numbers stored in train_ind
+kc_test=kc_housing_price[-train_ind,]  # creates the test dataset excluding the row numbers mentioned in train_ind
+```
+
+## Data visualization
+
+Because of my personal interests, I picked latitude, longitude, the number of bedrooms and bathrooms, lving space, condition, grade and price to see if there is any relationships between them or are they important variables.
+
+### Latitude and Longitude
+
+This is a map for all the sold houses. 
+
+```{r map,message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+qmplot(data = kc_housing, 
+       x = long, 
+       y = lat, 
+       color = I("#342c5c"), 
+       alpha = I(0.5))
+```
+
+
+### Median Price and Bedrooms/Bathrooms
+
+
+```{r median price and bedrooms/bathrooms, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+kc_housing[!(kc_housing$bedrooms== 33),]%>% 
+  group_by(bedrooms) %>%
+ summarise(medianprice = median(price)) %>% 
+  select(bedrooms, medianprice) %>% 
+  ungroup() %>%
+  ggplot(aes(x = bedrooms, y = medianprice))+
+  geom_line(color = "dark blue")+
+  ggtitle("Median Price and the Number of Bedrooms")+
+  theme_gray(base_size = 12)+
+  xlab("The Number of Bedrooms")+
+  ylab("Price")+ 
+  theme_bw()
+  
+kc_housing[!(kc_housing$bedrooms== 33),]%>% 
+  group_by(bathrooms) %>%
+ summarise(medianprice = median(price)) %>% 
+  select(bathrooms, medianprice) %>% 
+  ungroup() %>%
+  ggplot(aes(x = bathrooms, y = medianprice))+
+  geom_line(color = "sky blue")+
+  ggtitle("Median Price and the Number of Bathrooms")+
+  theme_gray(base_size = 12)+
+  xlab("The Number of Bathrooms")+
+  ylab("Price")+ 
+  theme_bw()
+```
+
+
+
+### Price and Living Space
+
+
+```{r price and living space, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+kc_housing %>% ggplot(aes(x = sqft_living, y = price, 
+           group = bedrooms, 
+           color = condition)) +
+  geom_point() +
+  xlab("Sqft_living") + 
+  ylab("Price") +
+  ggtitle("Price and Living Space") +
+  theme_bw() +  
+  facet_wrap(~ condition) +
+  theme(legend.position = c(0.8, 0.25))
+```
+
+
+### Waterfront
+
+
+```{r waterfront, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+kc_housing%>% 
+  group_by(waterfront) %>%
+ summarise(medianprice = median(price)) %>% 
+  select(waterfront, medianprice) %>% 
+  ungroup() %>%
+  mutate(waterfront = reorder(waterfront,medianprice)) %>% #changed the data type of waterfront 
+  ggplot(aes(x = waterfront, y = medianprice))+
+  geom_bar(stat='identity',colour="white", fill = "sky blue")+
+   labs(x = 'Waterfront', 
+       y = 'Median Price', 
+       title = 'Waterfront and Median Price') +
+theme_bw()
+  
+```
+
+
+
+After my consideration, I decided to use zip code as the tool of my fixed effect model. Given the situation that there are more than 100 zip code in King county, I narrowed down my analysis area to Bellevue, which covers 5 zip codes. So In the following analysis, I will conduct the regression and prediction for the King county first, then I will try to add fixed effect model using the house sales data of Bellevue. 
+
+
+
+```{r grade, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+table(kc_housing$zipcode)
+```
+
+
+The zip codes which belongs to Bellevue in this dataset are, 98004,98005, 98006, 98007, and 98008.
+
+
+## Regression and Prediction
+
+
+Finally, here are the regression and prediction results. 
+
+
+### Regression
+
+
+```{r regression0, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+#by(data = kc_housing_price$price_b, INDICES = kc_train, FUN = summary)
+houseprice = lm(price_b ~ sqft_living + condition + bedrooms + bathrooms + floors + view + waterfront + lat + long + grade , data = kc_housing_price)
+
+summary(houseprice)
+```
+
+
+Given the initial regression, the independent variables are working very well. __The adjusted R-squared__ is 0.6164. In addition, I dropped these insignificant variables: bathrooms, waterfront, and longitude, and let's run the regression again:
+
+
+```{r regression1, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+#by(data = kc_housing_price$price_b, INDICES = kc_train, FUN = summary)
+houseprice = lm(price_b ~ sqft_living + condition + bedrooms + floors + view + lat + grade , data = kc_housing_price)
+
+summary(houseprice)
+```
+
+As you can see, now all the variables are statistically significant and there is no change of R-squaerd. So this formula is what we will use for OLS and logistic regression.
+
+
+#### OLS Regression
+
+
+```{r}
+lm.fit = lm(price_b ~ sqft_living + condition + bedrooms + floors + view + lat + grade, data = kc_train)
+ 
+summary(lm.fit)
+```
+
+
+
+#### OLS Prediction
+
+
+```{r prediction, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+lm.probs = predict(lm.fit, newdata = kc_test, type = "response")
+
+summary(lm.probs)
+
+true.price = kc_test$price_b
+
+summary(true.price) 
+# set a rule 
+lm.pred = ifelse(lm.probs > 0.5, 1, 0)
+highprice = kc_test$price_b
+table(lm.pred, highprice)
+```
+
+
+
+```{r check,message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+(1638 + 1095)/(1638 + 1095 + 167 + 90) #0.5 #Before
+```
+
+
+So here is the evaluation of the OLS regression.  
+ * Accuracy: `r round((1627 + 1089)/(1628 + 1089 + 101 + 173),2)`  
+ * Precision: `r round((1089)/(1089 + 101),2)`  
+ * Recall: `r round((1627 )/(1628 + 173),2)`  
+
+
+#### Logistic Regression
+
+
+Probabilities are better defined in logistic regression, in that it's impossible to predict the dependent variable goes beyond [0, 1]. Since this is a binary outcome regression, we should try to see if logistic regression method will better fit it.  
+
+
+```{r logistic regression1, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+glm.fit = glm(price_b ~ sqft_living + condition + bedrooms + floors + view + lat + grade, data = kc_train, family = binomial)
+glm.probs = predict(glm.fit, newdata = kc_test, type = "response")
+glm.pred = ifelse(glm.probs > 0.5, 1, 0) 
+highprice = kc_test$price_b
+table(glm.pred, highprice)
+```
+
+
+
+```{r}
+(1637+1135)/(1637+1135+91+127)
+```
+
+
+So here is the evaluation of the logistic regression without the fixed effect model.  
+ * Accuracy: `r round((1637+1135)/(1637+1135+91+127),2)`  
+ * Precision: `r round((1135)/(1135+91),2)`  
+ * Recall: `r round((1637)/(1637+127),2)`  
+
+
+### Bellevue 
+
+
+Here are the housing data of Bellevue.(Zip code: 98004, 98005, 98006, 98007, 98008)
+
+
+```{r bellevue, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+b_housing_price <- subset(kc_housing_price, zipcode %in% c(98004, 98005, 98006, 98007, 98008))
+```
+
+
+
+```{r train & test1, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+# https://rpubs.com/ID_Tech/S1
+smp_siz = floor(0.8*nrow(b_housing_price)) 
+smp_siz
+set.seed(123)   # set seed to ensure you always have same random numbers generated
+train_ind = sample(seq_len(nrow(b_housing_price)),size = smp_siz)  # Randomly identifies therows equal to sample size ( defined in previous instruction) from  all the rows of Smarket dataset and stores the row number in train_ind
+b_train =b_housing_price[train_ind,] #creates the training dataset with row numbers stored in train_ind
+b_test=b_housing_price[-train_ind,]  # creates the test dataset excluding the row numbers mentioned in train_ind
+```
+
+
+
+To simplify the process and only concentrate on the difference of with/without fixed effect models, I only adopted logistic regression here. Here is the regression and prediction result without fixed effect model.
+
+
+
+```{r logistic regression2, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+glm.fit = glm(price_b ~ sqft_living + condition + bedrooms + floors + view + lat + grade, data = b_train, family = binomial)
+```
+
+
+
+```{r logistic prediction2.1, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+glm.probs = predict(glm.fit, newdata = b_test, type = "response")
+glm.pred = ifelse(glm.probs > 0.6, 1, 0) #when it's 0.6, the outcome is a little bit better than 0.5
+highprice = b_test$price_b
+table(glm.pred, highprice)
+```
+
+
+```{r}
+(188+6)/(188+6+5+4)
+```
+
+
+This is a very high accuracy. Then let's see the outcome with fixed effect model. 
+
+
+#### With Fixed Effect Model
+
+
+```{r logistic regression3, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+glm.fit = glm(price_b ~ sqft_living + condition + bedrooms + floors + view + lat + grade + b1 +b2 + b3 + b4 + b5, data = b_train, family = binomial)
+```
+
+
+
+```{r logistic prediction3.1, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+glm.probs = predict(glm.fit, newdata =b_test, type = "response")
+glm.pred = ifelse(glm.probs > 0.6, 1, 0) #when it's 0.6, the outcome is a little bit better than 0.5
+highprice = b_test$price_b
+table(glm.pred, highprice)
+```
+
+
+
+```{r, message=FALSE, warning=FALSE, tidy=TRUE, echo=TRUE}
+(191+9)/(191+9+2+1)
+```
+
+
+So here is the evaluation of the regression with the fixed effect model.  
+* Accuracy: `r round((191+9)/(191+9+2+1),2)`  
+* Precision: `r round((191)/(191 + 2),2)`  
+* Recall: `r round((9)/(9+1),2)`  
+
+Above all, these outcomes are the best I got. Ther accuracy is very close to 100%. 
+
+
+
+## Policy Implications
+
+I conducted OLS and logistic regression for the King county housing sales data, and logistic regression with/without fixed effect model using Bellevue housing sales data. The accuracy increased little by little in the process. Actually, the accuracy of each prediction is higher than 90%, so I think in general it is a good regression with all the independent variables. When we know living space,house condition, the nubmer of bedrooms, floors, view, latitude, grade, and zipcode, it is very easy for us to predict whether the price of the house is higher or lower than median price. 
+
+
