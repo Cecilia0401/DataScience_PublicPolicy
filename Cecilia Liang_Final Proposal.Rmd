@@ -1,5 +1,5 @@
 ---
-title: "599 Final Proposal"
+title: "King County Housing Sale Prediction"
 author: "Cecilia Liang"
 date: "6/8/2020"
 output: html_document
